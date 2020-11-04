@@ -1,0 +1,304 @@
+
+
+
+
+/* ------------------------ */
+/* --- 2020.11.12 10:08 --- */
+/* ------------------------ */
+
+
+
+package me.chophome.slicer2
+
+// KT - Kotlin Type
+// F - Field
+// FS - FieldSet
+
+typealias RecordKeys = Map<String, Field<*, out FieldSet<*>>>
+typealias MutableRecordKeys = MutableMap<String, Field<*, out FieldSet<*>>>
+typealias RecordFields = Map<String, Field<*, out FieldSet<*>>>
+typealias MutableRecordFields = MutableMap<String, Field<*, out FieldSet<*>>>
+typealias RecordData = Map<String, Any?>
+typealias MutableRecordData = MutableMap<String, Any?>
+
+abstract class FieldSet<FS : FieldSet<FS>>(
+    val name: String
+) {
+    private val _keys: MutableRecordKeys = LinkedHashMap()
+    private val _fields: MutableRecordFields = LinkedHashMap()
+
+    val keys: RecordKeys = _keys
+    val fields: RecordFields = _fields
+
+    fun <FS : FieldSet<FS>, F : Field<*, FS>> register(field: F, isKey: Boolean = false): F {
+        if (isKey) _keys[field.code] = field
+        _fields[field.code] = field
+        return field
+    }
+
+    fun create(): Record<FS> {
+        val record = Record(this as FS)
+        fields.values.forEach {
+            if (it.valueCalculator == null) {
+                val initialCalculator = it.initialCalculator
+                record[it as Field<Any?, FS>] = (if (initialCalculator != null) initialCalculator() else it.type.initialCalculator())
+            }
+        }
+        return record
+    }
+
+    protected fun <KT, FS : FieldSet<FS>> FS.createField(
+        code: String,
+        name: String = "",
+        description: String = "",
+        type: FieldType<KT>,
+        valueCalculator: ((record: Record<FS>) -> KT)? = null,
+        initialCalculator: (() -> KT)? = null,
+        isKey: Boolean = false
+    ): Field<KT, FS> {
+        val field = Field(this, code, name, description, type, valueCalculator, initialCalculator)
+        return register(field, isKey)
+    }
+
+    protected fun <FS : FieldSet<FS>> FS.stringField(
+        code: String,
+        name: String = "",
+        description: String = "",
+        valueCalculator: ((record: Record<FS>) -> String)? = null,
+        initialCalculator: (() -> String)? = null,
+        isKey: Boolean = false
+    ): Field<String, FS> {
+        val field = Field(this, code, name, description, StringFieldType(), valueCalculator, initialCalculator)
+        return register(field, isKey)
+    }
+
+    protected fun <FS : FieldSet<FS>> FS.intField(
+        code: String,
+        name: String = "",
+        description: String = "",
+        valueCalculator: ((record: Record<FS>) -> Int)? = null,
+        initialCalculator: (() -> Int)? = null,
+        isKey: Boolean = false
+    ): Field<Int, FS> {
+        val field = Field(this, code, name, description, IntFieldType(), valueCalculator, initialCalculator)
+        return register(field, isKey)
+    }
+}
+
+//object DynamicFieldSet : FieldSet<DynamicFieldSet>("__dynamic__")
+
+class Record<FS : FieldSet<FS>>(
+    val fieldSet: FS
+) {
+    private val data: MutableRecordData = LinkedHashMap()
+
+    operator fun <KT> get(field: Field<KT, FS>): KT {
+        val calculator = field.valueCalculator
+        if (calculator != null)
+            return calculator(this)
+        return data[field.code] as KT
+    }
+
+    operator fun <KT> set(field: Field<KT, FS>, value: KT) {
+        if (field.valueCalculator != null)
+            return
+        data[field.code] = value
+    }
+
+    override fun toString(): String {
+        return data.toString()
+    }
+}
+
+//enum class ValidationLevel {
+//    OK, INFO, WARNING, ERROR
+//}
+//
+//class FieldSetValidationResult(
+//    val level: ValidationLevel,
+//    val messages: MutableList<String> = ArrayList()
+//)
+//
+//interface FieldSetValidator<KT, FS : FieldSet<FS>> {
+//    val fieldSet: FS
+//    val errorMessage: String
+//    fun validate(value: KT): FieldSetValidationResult
+//}
+
+class Field<KT, FS : FieldSet<FS>>(
+    val fieldSet: FS,
+    val code: String,
+    val name: String,
+    val description: String,
+    val type: FieldType<KT>,
+    val valueCalculator: ((record: Record<FS>) -> KT)? = null,
+    val initialCalculator: (() -> KT)? = null
+)
+
+interface FieldType<KT> {
+    val initialCalculator: (() -> KT)
+}
+
+/* ------------------- */
+/* --- Field Types --- */
+/* ------------------- */
+
+
+// Примитивный тип поля
+class ScalarFieldType<KT>(override val initialCalculator: () -> KT) : FieldType<KT>
+
+// Вычисляемый тип поля
+class CalculatedFieldType<KT>(override val initialCalculator: () -> KT) : FieldType<KT>
+
+// Встроенный тип поля
+class InternalFieldType<FS : FieldSet<FS>>(
+    val fieldSet: FS
+) : FieldType<Record<FS>> { override val initialCalculator = { fieldSet.create() } }
+
+// Ссылочный тип поля
+class ReferenceFieldType<FS : FieldSet<FS>>(
+    val fieldSet: FS
+) : FieldType<Record<FS>> { override val initialCalculator = { fieldSet.create() } }
+
+
+//class StringFieldType : FieldType<String> { override val initialCalculator = { "" } }
+//class StringNullableFieldType : FieldType<String?> { override val initialCalculator = { null } }
+//
+//class IntFieldType : FieldType<Int> { override val initialCalculator = { 0 } }
+//class IntNullableFieldType : FieldType<Int?> { override val initialCalculator = { null } }
+//
+//
+//class TypedObjectFieldType<FS : FieldSet<FS>>(
+//    val fieldSet: FS
+//) : FieldType<Record<FS>> { override val initialCalculator = { fieldSet.create() } }
+//
+//class TypedObjectNullableFieldType<FS : FieldSet<FS>>(
+//    val fieldSet: FS
+//) : FieldType<Record<FS>?> { override val initialCalculator = { null } }
+//
+//class DynamicObjectFieldType : FieldType<Record<DynamicFieldSet>> { override val initialCalculator = { DynamicFieldSet.create() } }
+//class DynamicObjectNullableFieldType : FieldType<Record<DynamicFieldSet>?> { override val initialCalculator = { null } }
+//
+//class TypedObjectsListFieldType<FS : FieldSet<FS>> : FieldType<MutableList<Record<FS>>> { override val initialCalculator = { ArrayList<Record<FS>>() } }
+//class DynamicObjectsListFieldType : FieldType<MutableList<Record<DynamicFieldSet>>> { override val initialCalculator = { ArrayList<Record<DynamicFieldSet>>() } }
+//
+//class ReferenceFieldType<FS : FieldSet<FS>>(
+//    val fieldSet: FS
+//) : FieldType<Record<FS>?> { override val initialCalculator = { null } }
+
+
+//class ByteFieldType
+//class ShortFieldType
+//class LongFieldType
+//class FloatFieldType
+//class DoubleFieldType
+//class DecimalFieldType
+//class DateFieldType
+//class TimeFieldType
+//class DatetimeFieldType
+//class TimestampFieldType
+
+
+
+
+/* ------------------------ */
+/* --- 2020.10.10 21:52 --- */
+/* ------------------------ */
+
+
+class DynamicField2(code: String, name: String, description: String, default: FieldSetRecord<DynamicFieldSet> = DynamicFieldSet.createDefault())
+    : ObjectField<DynamicFieldSet>(DynamicFieldSet, code, name, description, default)
+class DynamicNullableField2(code: String, name: String, description: String, default: FieldSetRecord<DynamicFieldSet>? = null)
+    : ObjectNullableField<DynamicFieldSet>(DynamicFieldSet, code, name, description, default)
+
+
+
+
+/* ------------------------ */
+/* --- 2020.10.10 21:14 --- */
+/* ------------------------ */
+
+
+// KT - Kotlin Type
+// FT - Field Type
+// FS - FieldSet
+
+abstract class FieldSet {
+    val _fields: Map<String, Field<*>> = LinkedHashMap()
+
+    fun <FT : FieldType<*>> _register(field: Field<FT>): Field<FT> {
+        (_fields as MutableMap).put(field.code, field)
+        field.
+        return field
+    }
+}
+
+object DynamicFieldSet : FieldSet() {
+
+}
+
+data class Field<FT : FieldType<*>>(
+    val code: String,
+    val name: String,
+    val description: String,
+    val type: FT
+) {
+}
+
+
+class FieldSetData<FS : FieldSet>(
+    val fieldSet: FS
+) {
+    val data: Map<String, Any?> = mapOf()
+
+    fun <KT> get(field: Field<FieldType<KT>>): KT {
+        return data[field.code] as KT
+    }
+}
+
+
+//enum class FieldType {
+//    STRING,
+//    BYTE,
+//    SHORT,
+//    INTEGER,
+//    LONG,
+//    FLOAT,
+//    DOUBLE,
+//    DECIMAL,
+//    DATE,
+//    TIME,
+//    DATETIME,
+//    TIMESTAMP,
+//    OBJECT,
+//    LIST,
+//    REFERENCE
+//}
+
+
+abstract class FieldType<KT> {
+
+}
+
+interface FieldValidator<FT : FieldType<KT>, KT> {
+    fun isValid(value: KT): Boolean
+}
+
+class StringFieldType : FieldType<String>() {}
+class StringNullableFieldType : FieldType<String?>() {}
+class ByteFieldType : FieldType<Byte>() {}
+class ShortFieldType : FieldType<Short>() {}
+class IntegerFieldType : FieldType<Int>() {}
+class LongFieldType : FieldType<Long>() {}
+class FloatFieldType : FieldType<Float>() {}
+class DoubleFieldType : FieldType<Double>() {}
+//class DecimalFieldType : FieldType<Decimal>() {}
+class DateFieldType : FieldType() {}
+class TimeFieldType : FieldType() {}
+class DatetimeFieldType : FieldType() {}
+class TimestampFieldType : FieldType() {}
+class FieldSetFieldType<FS : FieldSet> : FieldType<FieldSetData<FS>>() {}
+class DynamicFieldType : FieldType<FieldSetData<DynamicFieldSet>>() {}
+class ListFieldType<T : FieldType<*>> : FieldType<List<T>>() {}
+class ReferenceFieldType : FieldType() {}
+
