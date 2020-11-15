@@ -1,6 +1,4 @@
-import me.chophome.slicer.Entity
-import me.chophome.slicer.Record
-import me.chophome.slicer.ScalarList
+import me.chophome.slicer.*
 
 object OneFS : Entity<OneFS>("OneFS") {
     val id = scalar("id", -1L, isKey = true)
@@ -8,13 +6,18 @@ object OneFS : Entity<OneFS>("OneFS") {
     val text = scalar("text", "---")
     val rndInit = scalar("rndInit") { (0..100).random() }
     val rndCalc = scalar("rndCalc", isCalculated = true) { (0..100).random() }
-
     val emb = embedded("emb", TwoFS) { TwoFS.createRecord() }
-
     val list = add(ScalarList(this, "list", false, false, { arrayListOf<Record<TwoFS>>() }))
 }
 
 object TwoFS : Entity<TwoFS>("TwoFS") {
+    val aaa = scalar("aaa", "", isKey = true)
+    val bbb = scalar("bbb", "", isKey = true)
+    val ccc = scalar("ccc", "", isKey = true)
+    val xxx = embedded("xxx", ThreeFS) { ThreeFS.createRecord() }
+}
+
+object ThreeFS : Entity<ThreeFS>("ThreeFS") {
     val aaa = scalar("aaa", "", isKey = true)
     val bbb = scalar("bbb", "", isKey = true)
     val ccc = scalar("ccc", "", isKey = true)
@@ -39,5 +42,22 @@ fun main() {
         println(v)
     }
 
-}
+//    val store = CsvStore()
+//    println(store)
 
+    val query = OneFS.query()
+        .select(
+            OneFS.id.asNode(),
+            OneFS.number.asNode(),
+            OneFS.emb.asNode(
+                TwoFS.aaa.asNode(),
+                TwoFS.ccc.asNode(),
+                TwoFS.xxx.asNode(
+                    ThreeFS.aaa.asNode(),
+                    ThreeFS.bbb.asNode(),
+                    ThreeFS.ccc.asNode()
+                )
+            )
+        )//.condition((OneFS.number eq 10) and (Test1.ccc eq true))
+
+}

@@ -8,27 +8,27 @@ class Record<E : Entity<E>>(
 
     operator fun <R> get(field: Field<E, R>): R {
         checkField(field)
-        return if (field.isCalculated) field.calculator(this) else _data[field.code] as R
+        return if (field.isCalculated) field.calculator(this) else _data[field] as R
     }
 
-    operator fun <T> set(field: Field<E, T>, value: T) {
+    operator fun <T> set(field: Field<out E, T>, value: T) {
         checkField(field)
-        if (!field.isCalculated) _data[field.code] = value
+        if (!field.isCalculated) _data[field] = value
     }
 
     operator fun get(fieldCode: String): Any? {
         val field = checkField(getField(fieldCode))
-        return if (field.isCalculated) field.calculator(this) else _data[field.code]
+        return if (field.isCalculated) field.calculator(this) else _data[field]
     }
 
     operator fun set(fieldCode: String, value: Any?) {
         val field = checkField(getField(fieldCode))
-        if (!field.isCalculated) _data[field.code] = value
+        if (!field.isCalculated) _data[field] = value
     }
 
     override fun toString(): String {
         val sb = StringBuilder()
-        sb.append("Record<${entity.code}> : keys[")
+        sb.append("Record : keys[")
         entity.keys.values.joinTo(sb) { "${it.code}='${get(it)}'" }
         sb.append("] : fields[")
         entity.fields.values.joinTo(sb) { "${it.code}='${get(it)}'" }
@@ -58,52 +58,7 @@ class Record<E : Entity<E>>(
 
     private fun <F : Field<*, *>> checkField(field: F): F {
         if (field.entity != entity)
-            throw IllegalArgumentException("Passed field entity '${field.entity}' not equals with record entity '$entity'!")
+            throw IllegalArgumentException("Passed field entity '${field.entity.code}' not equals with record entity '${entity.code}'!")
         return field
-    }
-}
-
-class UnionRecord/*<U : Union>*/(
-    //val union: U
-) {
-    private val data: MutableMap<Entity<*>, Record<*>> = LinkedHashMap()
-
-    operator fun <R> get(field: Field<*, R>): R {
-        val record = data[field.entity] as Record
-        val result = record[field.code]
-        return result as R
-    }
-
-    operator fun <T> set(field: Field<*, T>, value: T) {
-        val record = data[field.entity] as Record
-        record[field.code] = value
-    }
-
-    operator fun get(entity: Entity<*>, fieldCode: String): Any? {
-        val record = data[entity] as Record
-        val result = record[fieldCode]
-        return result
-    }
-
-    operator fun set(entity: Entity<*>, fieldCode: String, value: Any?) {
-        val record = data[entity] as Record
-        record[fieldCode] = value
-    }
-
-    override fun toString(): String {
-        val sb = StringBuilder()
-        sb.append("UnionRecord[")
-        data.values.joinTo(sb)
-        sb.append("]")
-        return sb.toString()
-    }
-
-    fun <T> resetToDefault(field: Field<*, T>) {
-        val record = data[field.entity] as Record
-        record.resetToDefault(field.code)
-    }
-
-    fun resetToDefault() {
-        data.values.forEach { it.resetToDefault() }
     }
 }

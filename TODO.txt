@@ -14,3 +14,108 @@
 - Дефолтные наборы полей (скаляры, встроенные объекты, прямые ссылки, обратные ссылки, листы)
 - Возможность проверить загружалось ли поле
 - Возможность догрузить поле лениво и по отдельному запросу
+
+
+
+
+
+
+
+
+
+
+
+//class Node(
+//    val parent: Node? = null,
+//    val field: Field<*, *>? = null
+//) {
+//    val children: MutableList<Node> = ArrayList()
+//
+//    fun add(field: Field<*, *>): Node {
+//        val node = Node(this, field)
+//        children.add(node)
+//        return node
+//    }
+//
+//    override fun toString(): String = children.toString()
+//}
+//
+//var rootNode: Node = Node()
+//var currentNode: Node = rootNode
+//var stackNodes: MutableList<Node> = ArrayList()
+//
+//
+//fun <E : Entity<E>> Query<E>.nodes(collector: E.() -> Unit): Query<E> {
+//    rootNode = Node()
+//    this.entity.collector()
+//    return this
+//}
+//
+//operator fun <E : Entity<E>> Scalar<E, *>.invoke() {
+//    if (stackNodes.isNotEmpty()) {
+//        stackNodes.clear()
+//        currentNode = rootNode
+//    }
+//    currentNode.add(this)
+//}
+//
+//operator fun <E : Entity<E>, TE : Entity<TE>> Embedded<E, TE>.invoke(collector: TE.() -> Unit) {
+//    if (stackNodes.isNotEmpty()) {
+//        stackNodes.clear()
+//        currentNode = rootNode
+//    }
+//    val new = currentNode.add(this)
+//    val old = currentNode
+//    currentNode = new
+//    this.targetEntity.collector()
+//    currentNode = old
+//}
+
+//    val query = Test1.query()
+//        .nodes {
+//            aaa()
+//            ccc()
+//            ddd {
+//                xxx()
+//                yyy()
+//                www {
+//                    rrr()
+//                    ppp()
+//                }
+//            }
+//        }.filter((Test1.aaa eq 10) and (Test1.ccc eq true))
+
+
+
+
+
+
+inline fun <E : Entity<E>> Query<E>.fff(childrenBuilder: NodeListBuilder<E>.() -> Unit = {}): List<Node> {
+    return NodeListBuilder<E>().let {
+        it.childrenBuilder()
+        it.list
+    }
+}
+
+
+class Node(val field: Field<*, *>) {
+    val children: MutableList<Node> = ArrayList()
+    override fun toString(): String {
+        return "${field.code} $children"
+    }
+}
+
+class NodeListBuilder<E : Entity<E>> {
+    val list = mutableListOf<Node>()
+
+    //operator fun Node.unaryPlus() = list.add(this)
+    operator fun Scalar<E, *>.invoke() = list.add(Node(this))
+    operator fun <TE : Entity<TE>> Embedded<E, TE>.invoke(childrenBuilder: NodeListBuilder<TE>.() -> Unit = {}) {
+        val node = Node(this)
+        node.children.addAll(NodeListBuilder<TE>().let {
+            it.childrenBuilder()
+            it.list
+        })
+        list.add(node)
+    }
+}
