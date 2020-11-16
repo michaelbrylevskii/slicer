@@ -14,20 +14,20 @@ class ObjectNode<E : Entity<E>, TE : Entity<TE>>(override val field: Field<E, *>
     }
 }
 
-fun <E : Entity<E>> Scalar<E, *>.asNode(): Node<E> {
+fun <E : Entity<E>> ScalarField<E, *>.asNode(): Node<E> {
     return ScalarNode(this)
 }
 
-fun <E : Entity<E>, TE : Entity<TE>> Embedded<E, TE>.asNode(vararg nodes: Node<TE>): ObjectNode<E, TE> {
+fun <E : Entity<E>, TE : Entity<TE>> EmbeddedField<E, TE>.asNode(vararg nodes: Node<TE>): ObjectNode<E, TE> {
     return ObjectNode(this, nodes.asIterable())
 }
 
 //a..b	a.rangeTo(b)
 
-operator fun <E : Entity<E>, TE : Entity<TE>> Embedded<E, TE>.rangeTo(field: Scalar<TE, *>): ObjectNode<E, TE>  {
+operator fun <E : Entity<E>, TE : Entity<TE>> EmbeddedField<E, TE>.rangeTo(field: ScalarField<TE, *>): ObjectNode<E, TE>  {
     return this.asNode().apply { children.add(field.asNode()) }
 }
-operator fun <E : Entity<E>, TE : Entity<TE>> Embedded<E, TE>.rangeTo(field: Embedded<TE, *>): ObjectNode<E, TE>  {
+operator fun <E : Entity<E>, TE : Entity<TE>> EmbeddedField<E, TE>.rangeTo(field: EmbeddedField<TE, *>): ObjectNode<E, TE>  {
     return this.asNode().apply { children.add(field.asNode()) }
 }
 //operator fun <E : Entity<E>, TE : Entity<TE>> ObjectNode<E, TE>.rangeTo(field: Scalar<TE, *>): ObjectNode<E, TE>  {

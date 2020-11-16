@@ -7,7 +7,10 @@ object OneFS : Entity<OneFS>("OneFS") {
     val rndInit = scalar("rndInit") { (0..100).random() }
     val rndCalc = scalar("rndCalc", isCalculated = true) { (0..100).random() }
     val emb = embedded("emb", TwoFS) { TwoFS.createRecord() }
-    val list = add(ScalarList(this, "list", false, false, { arrayListOf<Record<TwoFS>>() }))
+    val scalarList = registerField(ScalarListField(this, "scalarList", false, false, { arrayListOf<Int>() }))
+    val objectList = registerField(ObjectListField(this, "objectList", false, false, { arrayListOf() }, ThreeFS))
+    val obj1 = obj("obj1", ThreeFS, null as TypedRecord<ThreeFS>?)
+    val obj2 = obj("obj2", ThreeFS) { ThreeFS.createRecord() }
 }
 
 object TwoFS : Entity<TwoFS>("TwoFS") {
@@ -24,22 +27,29 @@ object ThreeFS : Entity<ThreeFS>("ThreeFS") {
 }
 
 fun main() {
-    val r = OneFS.createRecord()
-    println(r)
-    r[OneFS.text] = "Новый текст"
-    r[OneFS.number] = 555
-    r[OneFS.emb][TwoFS.aaa] = "AAA"
-    repeat(5) { println(r) }
+    val record = OneFS.createRecord()
+    println(record)
+    record[OneFS.text] = "Новый текст"
+    record[OneFS.number] = 555
+    record[OneFS.emb][TwoFS.aaa] = "AAA"
+    repeat(5) { println(record) }
 
 
-    val list = r[OneFS.list]
-    r[OneFS.list].add(TwoFS.createRecord())
-    println(r)
+    val list1 = record[OneFS.scalarList]
+    record[OneFS.scalarList].add(123)
+    record[OneFS.scalarList].add(456)
+    record[OneFS.scalarList].add(789)
+
+    val list2 = record[OneFS.objectList]
+    record[OneFS.objectList].add(ThreeFS.createRecord().apply { this[ThreeFS.aaa] = "Один" })
+    record[OneFS.objectList].add(ThreeFS.createRecord().apply { this[ThreeFS.aaa] = "Два" })
+    record[OneFS.objectList].add(ThreeFS.createRecord().apply { this[ThreeFS.aaa] = "Три" })
+
+    println(record)
 
     OneFS.fields.values.forEach {
-        val v = r[it]
-        r[it.code] = r[it]
-        println(v)
+        val value = record[it]
+        println(value)
     }
 
 //    val store = CsvStore()
@@ -59,5 +69,8 @@ fun main() {
                 )
             )
         )//.condition((OneFS.number eq 10) and (Test1.ccc eq true))
+
+
+    //val path = OneFS.emb..TwoFS.aaa
 
 }

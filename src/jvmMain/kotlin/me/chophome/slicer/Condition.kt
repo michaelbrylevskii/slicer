@@ -2,7 +2,7 @@ package me.chophome.slicer
 
 class Condition
 
-infix fun <KT> Scalar<*, KT>.eq(value: KT): Condition {
+infix fun <KT> ScalarField<*, KT>.eq(value: KT): Condition {
     TODO()
 }
 

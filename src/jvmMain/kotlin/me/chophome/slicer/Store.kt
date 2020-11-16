@@ -2,7 +2,7 @@ package me.chophome.slicer
 
 abstract class Store<S : Store<S>> {
     //    abstract fun <E : Entity<E>> getAll(entity: E): List<Record<E>>
-    abstract fun <E : Entity<E>> find(query: Query<E>): List<Record<E>>
+    abstract fun <E : Entity<E>> find(query: Query<E>): List<TypedRecord<E>>
 
 //    abstract fun <E : Entity<E>> getPage(query: Query<E>, page: Int, pageSize: Int): List<Record<E>>
 //    abstract fun <E : Entity<E>> findAll(query: Query<E>): List<Record<E>>

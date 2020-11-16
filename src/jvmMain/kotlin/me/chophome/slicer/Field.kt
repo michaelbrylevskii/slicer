@@ -1,11 +1,25 @@
 package me.chophome.slicer
 
+/**
+ * Все реализации:
+ * ScalarField
+ * EmbeddedField
+ * ObjectField
+ * DynamicField
+ * KeyReferenceField
+ * ScalarReferenceField
+ * KeyBackReferenceField
+ * ScalarBackReferenceField
+ * ScalarListField
+ * ObjectListField
+ * DynamicListField
+ */
 sealed class Field<E : Entity<E>, V>(
     val entity: E,
     val code: String,
     val isKey: Boolean,
     val isCalculated: Boolean,
-    val calculator: (Record<E>) -> V
+    val calculator: (TypedRecord<E>) -> V
 ) {
     val additional: MutableMap<String, Any?> = LinkedHashMap()
 }
@@ -13,12 +27,12 @@ sealed class Field<E : Entity<E>, V>(
 /**
  * Поле с одиночными знаениями, может быть вычисляемым
  */
-class Scalar<E : Entity<E>, KT>(
+class ScalarField<E : Entity<E>, KT>(
     entity: E,
     code: String,
     isKey: Boolean,
     isCalculated: Boolean,
-    calculator: (Record<E>) -> KT
+    calculator: (TypedRecord<E>) -> KT
 ) : Field<E, KT>(entity, code, isKey, isCalculated, calculator) {
     constructor(entity: E, code: String, isKey: Boolean, initial: KT)
             : this(entity, code, isKey, false, { initial })
@@ -27,96 +41,204 @@ class Scalar<E : Entity<E>, KT>(
 /**
  * Поле со встроенной записью Entity, может быть вычисляемым
  */
-class Embedded<E : Entity<E>, TE : Entity<TE>>(
+class EmbeddedField<E : Entity<E>, TE : Entity<TE>>(
     entity: E,
     code: String,
     isKey: Boolean,
     isCalculated: Boolean,
-    calculator: (Record<E>) -> Record<TE>,
+    calculator: (TypedRecord<E>) -> TypedRecord<TE>,
     val targetEntity: TE
-) : Field<E, Record<TE>>(entity, code, isKey, isCalculated, calculator) {
-    constructor(entity: E, code: String, isKey: Boolean, initial: Record<TE>, targetEntity: TE)
+) : Field<E, TypedRecord<TE>>(entity, code, isKey, isCalculated, calculator) {
+    constructor(entity: E, code: String, isKey: Boolean, initial: TypedRecord<TE>, targetEntity: TE)
             : this(entity, code, isKey, false, { initial }, targetEntity)
+}
+
+/**
+ * Поле с записью Entity, может быть вычисляемым
+ */
+class ObjectField<E : Entity<E>, TE : Entity<TE>, R : TypedRecord<TE>?>(
+    entity: E,
+    code: String,
+    isKey: Boolean,
+    isCalculated: Boolean,
+    calculator: (TypedRecord<E>) -> R,
+    val targetEntity: TE
+) : Field<E, R>(entity, code, isKey, isCalculated, calculator) {
+    constructor(entity: E, code: String, isKey: Boolean, initial: R, targetEntity: TE)
+            : this(entity, code, isKey, false, { initial }, targetEntity)
+}
+
+/**
+ * Поле с линачической записью, может быть вычисляемым
+ */
+class DynamicField<E : Entity<E>, TR : DynamicRecord?>(
+    entity: E,
+    code: String,
+    isKey: Boolean,
+    isCalculated: Boolean,
+    calculator: (TypedRecord<E>) -> TR
+) : Field<E, TR>(entity, code, isKey, isCalculated, calculator) {
+    constructor(entity: E, code: String, isKey: Boolean, initial: TR)
+            : this(entity, code, isKey, false, { initial })
 }
 
 /**
  * Прямая ссылка по ключам, МНОГИЕ -> ОДИН
  */
-class KeyReference<E : Entity<E>, TE : Entity<TE>>(
+class KeyReferenceField<E : Entity<E>, TE : Entity<TE>>(
     entity: E,
     code: String,
     isKey: Boolean,
     val targetEntity: TE,
-) : Field<E, Record<TE>?>(entity, code, isKey, false, { null })
+) : Field<E, TypedRecord<TE>?>(entity, code, isKey, false, { null })
 
 /**
  * Прямая ссылка по скалярному полю, МНОГИЕ -> ОДИН
  */
-class ScalarReference<E : Entity<E>, TE : Entity<TE>, F : Scalar<TE, *>>(
+class ScalarReferenceField<E : Entity<E>, TE : Entity<TE>, F : ScalarField<TE, *>>(
     entity: E,
     code: String,
     isKey: Boolean,
-    val targetField: F
-) : Field<E, Record<TE>?>(entity, code, isKey, false, { null }) {
-    val targetEntity: TE = targetField.entity
+    val targetFields: Set<F>
+) : Field<E, TypedRecord<TE>?>(entity, code, isKey, false, { null }) {
+    val targetEntity: TE = targetFields.first().entity
 }
 
 /**
  * Обратная ссылка по ключам, ОДИН -> МНОГИЕ
  */
-class KeyReferred<E : Entity<E>, RE : Entity<RE>, RF : KeyReference<RE, E>>(
+class KeyBackReferenceField<E : Entity<E>, RE : Entity<RE>, RF : KeyReferenceField<RE, E>>(
     entity: E,
     code: String,
     isKey: Boolean,
-    val referencingField: RF
-) : Field<E, List<Record<RE>>>(entity, code, isKey, false, { listOf() }) {
-
-    /**
-     * Ссылающийся филдсет (Entity)
-     */
-    val referencingEntity: RE = referencingField.entity
-}
+    val reference: RF
+) : Field<E, List<TypedRecord<RE>>>(entity, code, isKey, false, { listOf() })
 
 /**
  * Обратная ссылка по скалярному полю, ОДИН -> МНОГИЕ
  */
-class ScalarReferred<E : Entity<E>, RE : Entity<RE>, F : Scalar<E, *>, RF : ScalarReference<RE, E, F>>(
+class ScalarBackReferenceField<E : Entity<E>, RE : Entity<RE>, F : ScalarField<E, *>, RF : ScalarReferenceField<RE, E, F>>(
     entity: E,
     code: String,
     isKey: Boolean,
-    val referencingField: RF
-) : Field<E, List<Record<RE>>>(entity, code, isKey, false, { listOf() }) {
-
-    /**
-     * Ссылающийся филдсет (Entity)
-     */
-    val referencingEntity: RE = referencingField.entity
-
-    /**
-     * Поле из родительского (entity) филдсета (Entity), по которому ссылается ссылающийся филдсет (referencingEntity - Entity)
-     */
-    val referencingTargetField: F = referencingField.targetField
-}
+    val reference: RF
+) : Field<E, List<TypedRecord<RE>>>(entity, code, isKey, false, { listOf() })
 
 /**
- * Лист из одиночных значений, может быть вычисляемым
+ * Лист из скалярных значений, может быть вычисляемым
  */
-class ScalarList<E : Entity<E>, KT>(
+class ScalarListField<E : Entity<E>, KT>(
     entity: E,
     code: String,
     isKey: Boolean,
     isCalculated: Boolean,
-    calculator: (Record<E>) -> MutableList<KT>
+    calculator: (TypedRecord<E>) -> MutableList<KT>
 ) : Field<E, MutableList<KT>>(entity, code, isKey, isCalculated, calculator)
 
 /**
- * Лист из записей Entity, может быть вычисляемым
+ * Лист из типизированных объектов, может быть вычисляемым
  */
-class EmbeddedList<E : Entity<E>, TE : Entity<TE>>(
+class ObjectListField<E : Entity<E>, TE : Entity<TE>>(
     entity: E,
     code: String,
     isKey: Boolean,
     isCalculated: Boolean,
-    calculator: (Record<E>) -> MutableList<Record<TE>>,
+    calculator: (TypedRecord<E>) -> MutableList<TypedRecord<TE>>,
     val targetEntity: TE
-) : Field<E, MutableList<Record<TE>>>(entity, code, isKey, isCalculated, calculator)
+) : Field<E, MutableList<TypedRecord<TE>>>(entity, code, isKey, isCalculated, calculator)
+
+/**
+ * Лист из динамических объектов, может быть вычисляемым
+ */
+class DynamicListField<E : Entity<E>>(
+    entity: E,
+    code: String,
+    isKey: Boolean,
+    isCalculated: Boolean,
+    calculator: (TypedRecord<E>) -> MutableList<DynamicRecord>
+) : Field<E, MutableList<DynamicRecord>>(entity, code, isKey, isCalculated, calculator)
+
+/* ------------------------------------------- */
+/* --- Расширения создания полей из Entity --- */
+/* ------------------------------------------- */
+
+fun <E : Entity<E>, T> E.scalar(
+    code: String,
+    isKey: Boolean = false,
+    isCalculated: Boolean = false,
+    calculator: (TypedRecord<E>) -> T
+): ScalarField<E, T> {
+    return registerField(ScalarField(this, code, isKey, isCalculated, calculator))
+}
+
+fun <E : Entity<E>, T> E.scalar(
+    code: String,
+    initial: T,
+    isKey: Boolean = false
+): ScalarField<E, T> {
+    return registerField(ScalarField(this, code, isKey, initial))
+}
+
+fun <E : Entity<E>, TE : Entity<TE>> E.embedded(
+    code: String,
+    target: TE,
+    isKey: Boolean = false,
+    isCalculated: Boolean = false,
+    calculator: (TypedRecord<E>) -> TypedRecord<TE>
+): EmbeddedField<E, TE> {
+    return registerField(EmbeddedField(this, code, isKey, isCalculated, calculator, target))
+}
+
+fun <E : Entity<E>, TE : Entity<TE>> E.embedded(
+    code: String,
+    target: TE,
+    initial: TypedRecord<TE>,
+    isKey: Boolean = false
+): EmbeddedField<E, TE> {
+    return registerField(EmbeddedField(this, code, isKey, initial, target))
+}
+
+fun <E : Entity<E>, TE : Entity<TE>, TR : TypedRecord<TE>?> E.obj(
+    code: String,
+    target: TE,
+    isKey: Boolean = false,
+    isCalculated: Boolean = false,
+    calculator: (TypedRecord<E>) -> TR
+): ObjectField<E, TE, TR> {
+    return registerField(ObjectField(this, code, isKey, isCalculated, calculator, target))
+}
+
+fun <E : Entity<E>, TE : Entity<TE>, TR : TypedRecord<TE>?> E.obj(
+    code: String,
+    target: TE,
+    initial: TR,
+    isKey: Boolean = false
+): ObjectField<E, TE, TR> {
+    return registerField(ObjectField(this, code, isKey, initial, target))
+}
+
+fun <E : Entity<E>, TR : DynamicRecord?> E.dynamic(
+    code: String,
+    isKey: Boolean = false,
+    isCalculated: Boolean = false,
+    calculator: (TypedRecord<E>) -> TR
+): DynamicField<E, TR> {
+    return registerField(DynamicField(this, code, isKey, isCalculated, calculator))
+}
+
+fun <E : Entity<E>, TR : DynamicRecord?> E.dynamic(
+    code: String,
+    initial: TR,
+    isKey: Boolean = false
+): DynamicField<E, TR> {
+    return registerField(DynamicField(this, code, isKey, initial))
+}
+
+// TODO:
+// KeyReferenceField
+// ScalarReferenceField
+// KeyBackReferenceField
+// ScalarBackReferenceField
+// ScalarListField
+// ObjectListField
+// DynamicListField
